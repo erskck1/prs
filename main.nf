@@ -111,15 +111,7 @@ if (params.saige_base) {
 }
 
 if (params.gwas_cat_study_id){
-  gwas_catalogue_ftp_ch = Channel
-      .fromPath(params.gwas_catalogue_ftp, checkIfExists: true)
-      .ifEmpty { exit 1, "GWAS catalogue ftp locations not found: ${params.gwas_catalogue_ftp}" }
-      .splitCsv(header: true)
-      .map { row -> tuple(row.study_accession, row.ftp_link_harmonised_summary_stats) }
-      .filter{ it[0] == params.gwas_cat_study_id}
-      .ifEmpty { exit 1, "The GWAS study accession number you provided does not come as a harmonized dataset that can be used as a base cohort "}
-      .flatten()
-      .last()
+  gwas_catalogue_ftp_ch = params.gwas_cat_study_id
 } 
 
 
@@ -164,7 +156,7 @@ if (params.gwas_cat_study_id) {
     
     script:
     """
-    wget ${ftp_link}
+    wget -nc ${ftp_link}
     """
   }
 

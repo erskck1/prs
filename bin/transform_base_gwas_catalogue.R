@@ -2,8 +2,6 @@
 
 # Script to take base GWAS catalogue summary statistics and format them so that they match SAIGE statistics and can be used for input to PRSice input:
 
-
-
 ###################
 # Import packages #
 ###################
@@ -14,19 +12,28 @@ suppressPackageStartupMessages({
   library(optparse)
 })
 
-
+calculate_maf <- function(eaf) {
+  if(!is.na(eaf)) {
+    if(eaf < 0.5) {
+      return(eaf)
+    } else {
+      return(1-eaf)
+    }
+  } else {
+    return(eaf)
+  }
+}
 
 #####################
 # Parsing arguments #
 #####################
 
 option_list <- list(make_option(c("--input_gwas_cat"), action="store", type='character',help="String containing input GWAS catalogue file (base cohort)."))
+
 args = parse_args(OptionParser(option_list = option_list))
 
 # Arg to variable
-input_gwas_cat = args$input_gwas_cat
-
-
+input_gwas_cat = '/home/ersoykocak/Downloads/27989323-GCST004420-EFO_0008082.h.tsv.gz'#args$input_gwas_cat
 
 ######################################
 # Importing data and transforming it #
@@ -36,7 +43,7 @@ gwas_catalogue_file <- as_tibble(fread(input_gwas_cat))
 
 #### Keep harmonized data only ####
 
-base <- gwas_catalogue_file %>% select(starts_with("hm_"), starts_with("p_"))
+base <- gwas_catalogue_file %>% select(starts_with("hm_"), starts_with("p_"),starts_with("effect_allele_"))
 
 #### Remove SNPs with no beta or OR - these cannot be used by PRSice ####
 
@@ -60,9 +67,27 @@ base <- base %>% mutate(p_value = if_else(is.na(p_value), 1, p_value))
 base <- distinct(base, hm_rsid, .keep_all = TRUE)
 base <- distinct(base, hm_variant_id, .keep_all = TRUE)
 
+#### Calculate MAF using effect allele frequency ####
+
+base$MAF <- sapply(base$effect_allele_frequency, calculate_maf)
+number_of_na <-sum(is.na(base$effect_allele_frequency)) 
+
+if(number_of_na/nrow(base) > 0.25) {
+  base <- subset(base, is.na(MAF) | MAF > 0.01)
+} else {
+  base <- subset(base, !is.na(MAF) & MAF > 0.01)
+}
+
 #### Change column names to match SAIGE output ####
 
-colnames(base) <- c("hm_variant_id", "SNPID", "CHR", "POS", "Allele2", "Allele1", "BETA", "OR", "hm_ci_lower","hm_ci_upper","hm_effect_allele_frequency","hm_code","p.value")
+colnames(base)[which(names(base) == "hm_rsid")] <- "SNPID"
+colnames(base)[which(names(base) == "hm_chrom")] <- "CHR"
+colnames(base)[which(names(base) == "hm_pos")] <- "POS"
+colnames(base)[which(names(base) == "hm_other_allele")] <- "Allele2"
+colnames(base)[which(names(base) == "hm_effect_allele")] <- "Allele1"
+colnames(base)[which(names(base) == "hm_beta")] <- "BETA"
+colnames(base)[which(names(base) == "hm_odds_ratio")] <- "OR"
+colnames(base)[which(names(base) == "p_value")] <- "p.value"
 
 #### Save data ####
 
